@@ -1,15 +1,30 @@
+
 import os
 import discord
-from database import get_games,get_game_to,get_ranks_to,create_connection,insert_into_plays,insert_into_player
+from database import get_games,get_game_to,get_ranks_to,create_connection,get_mmr_title,insert_new_player,get_games_from_user_and_guild,get_ranks_from_user_and_guild
 from discord.ext import commands
 from games_config import games_with_icons,games_with_mmr
 
 intents = discord.Intents.all()
 
-token = "Here goes the token,for security reasons right now is not available"
+token = "ODYyOTU2MjgzMzg0OTU0OTAw.YOf4qg.gkWU6mKd6v2CNZFIkyj7wH1hVeM"
 
 bot = commands.Bot(command_prefix='$',intents=intents)
-connector = create_connection('localhost','root','root','bot')
+connector = None
+try:
+    connector = create_connection('localhost','root','root','bot')
+except Exception as error:
+    print('db not available {}'.format(error))
+
+@bot.command
+async def load(context,extension):
+    bot.load_extension('cogs.{}'.format(extension))
+    pass
+
+@bot.command
+async def unload(context,extension):
+    bot.unload_extension('cogs.{}'.format(extension))
+    pass
 
 def create_embed_with_title_from(a_title,a_dict_with_icons):
     embed = discord.Embed(title=a_title,color=0xe67e22)
@@ -31,7 +46,6 @@ async def on_ready():
 
 @bot.command()
 async def who(context):
-    print(context.guild)
     try:
         embed = discord.Embed(title="Server activity", description=show_players_activity(context.author.guild),color=0xe67e22)
     except AttributeError as error:
@@ -52,8 +66,27 @@ async def ping(context):
     await context.channel.send(embed=embed)
 
 @bot.command()
+async def my(context):
+    my_games = get_games_from_user_and_guild(connector,context.author.id,context.guild)
+    embed = create_embed_with_title_from('This are your games',my_games)
+    embed.set_author(name=context.author.name,icon_url=context.author.avatar_url)
+    await context.channel.send(embed=embed)
+
+@bot.command()
+async def rank(context):
+    my_ranks = get_ranks_from_user_and_guild(connector,context.author.id,context.guild)
+    embed = create_embed_with_title_from('This are your ranks',my_ranks)
+    embed.set_author(name=context.author.name,icon_url=context.author.avatar_url)
+    await context.channel.send(embed=embed)
+
+@bot.command()
+async def clear(context):
+    limit = 20
+    await context.channel.purge(limit=limit)
+
+@bot.command()
 async def add(context):
-    print(context.guild)
+
     games_from_db = get_games(connector)
     embed = create_embed_with_title_from('Select your games',games_from_db)
     embed.set_author(name=context.author.name,icon_url=context.author.avatar_url)
@@ -65,8 +98,6 @@ async def add(context):
         return not(user.bot) and user == context.author and reaction.message == game_selection and str(reaction.emoji) in games_from_db.values()
 
     game_icon,player = await bot.wait_for('reaction_add',check=check)
-    
-    print(game_icon)
     game_title = get_game_to(connector,game_icon)
     game_mmr = get_ranks_to(connector,game_title)
     
@@ -86,17 +117,8 @@ async def add(context):
                 return ('<:X_:864075974110216193>',user)
                   
     game_mmr_icon, _ = await bot.wait_for('reaction_add',check=check_mmr_selected)
-    print(type(player.id))
-    #insert_into_player(connector,player.id,player.name,context.guild.name)
-    insert_into_plays(connector,player.id,player.name,context.guild,game_title,str(game_icon.emoji),'hola',str(game_mmr_icon.emoji))
-    await context.send(player)
-    await context.send(game_icon)
-    await context.send(game_mmr_icon)
-
-@bot.command()
-async def insert(context):
-    print(context.author.id,context.author.name,context.guild.name)
-    print(type(context.author.id),type(context.author.name),type(context.guild.name))
-    insert_into_player(connector,context.author.id,context.author.name,context.guild.name)  
-
+    mmr_title = get_mmr_title(connector,game_mmr_icon)
+    print(player.id)
+    insert_new_player(connector,player.id,player.name,context.guild,game_title,game_icon,mmr_title,game_mmr_icon)
+    
 bot.run(token)
