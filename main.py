@@ -1,13 +1,13 @@
 
 import os
 import discord
-from database import get_games,get_game_to,get_ranks_to,create_connection,get_mmr_title,insert_new_player,get_games_from_user_and_guild,get_ranks_from_user_and_guild,find_players
+from database import get_games,get_game_to,get_ranks_to,create_connection,get_mmr_title,insert_new_player,get_games_from_user_and_guild,get_ranks_from_user_and_guild,find_players,update_mmr
 from discord.ext import commands
 from games_config import games_with_icons,games_with_mmr
 
 intents = discord.Intents.all()
 
-token = ""
+token = "here goes the token"
 
 bot = commands.Bot(command_prefix='$',intents=intents)
 connector = None
@@ -149,4 +149,36 @@ async def add(context):
     print(player.id)
     insert_new_player(connector,player.id,player.name,context.guild,game_title,game_icon,mmr_title,game_mmr_icon)
     
+@bot.command()
+async def update(context):
+    my_games = get_games_from_user_and_guild(connector,context.author.id,context.guild)
+    embed = create_embed_with_title_from('Select a game to update',my_games)
+    embed.set_author(name=context.author.name,icon_url=context.author.avatar_url)
+    game_msg = await context.author.send(embed=embed)
+    for game in my_games.values():
+        await game_msg.add_reaction(game)
+    
+    def check(reaction, user):
+        return not(user.bot) and user == context.author and reaction.message == game_msg and str(reaction.emoji) in my_games.values()
+
+    game_icon,player = await bot.wait_for('reaction_add',check=check)
+    game_title = get_game_to(connector,game_icon)
+    game_mmr = get_ranks_to(connector,game_title)
+
+    embed_mmr = create_embed_with_title_from(game_title,game_mmr)
+    embed_mmr.set_author(name="Now select your new MMR",icon_url=context.author.avatar_url)
+    mmr_selection = await context.author.send(embed=embed_mmr,delete_after=60)
+    for icon_mmmr in game_mmr.values():
+             await mmr_selection.add_reaction(icon_mmmr)
+
+    def check_mmr_selected(reaction, user):
+
+        if context.author == user and reaction.message == mmr_selection and not(user.bot):
+            if (str(reaction.emoji) in game_mmr.values()):
+                return (reaction.emoji,user)
+                  
+    game_mmr_icon, _ = await bot.wait_for('reaction_add',check=check_mmr_selected)
+    mmr_title = get_mmr_title(connector,game_mmr_icon)
+    update_mmr(connector,context.guild,player.name,game_title,mmr_title,game_mmr_icon)
+
 bot.run(token)
