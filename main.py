@@ -77,8 +77,8 @@ async def party(context):
     game_title = get_game_to(connector,game_icon)
 
     #we make the message to the members of the guild
-    party_embed = discord.Embed(title=context.author.name + ' is creating a party for: ',color=0xe67e22)
-    party_embed.add_field(name=game_title,value=game_icon)
+    party_embed = discord.Embed(title='is creating a party for: ' + game_title.capitalize(), color=0xe67e22)
+    party_embed.set_author(name=context.author.name, icon_url=context.author.avatar_url)
     party_message = await context.channel.send(embed=party_embed)
     await party_message.add_reaction(game_icon)
     
@@ -89,19 +89,23 @@ async def party(context):
         return not(user.bot) and reaction.message == party_message and str(reaction.emoji) in games_from_db.values()
 
     while True:
-        reaction,player = await bot.wait_for('reaction_add',check=check_users)
+        reaction, player = await bot.wait_for('reaction_add', check=check_users)
         player_waitlist.append(player)
-        if len(player_waitlist) == 1:
+
+        new_embed = party_message.embeds.pop()
+        new_embed.add_field(name=player.name, value='has joined the party')
+        await party_message.edit(embed=new_embed)
+
+        if len(player_waitlist) == 2:
             break
     
     #we create a voice channel for that game and an invitation 
-    voice = await context.guild.create_voice_channel(name=game_title,user_limit=5)
+    voice = await context.guild.create_voice_channel(name=game_title, user_limit=5)
     invite = await voice.create_invite()
 
     for p in player_waitlist:
         await p.send(invite)
     
-
 @bot.command()
 async def games(context):
     embed = create_embed_with_title_from('Our games',get_games(connector))
@@ -165,11 +169,12 @@ async def find(context):
     players = find_players(connector,context.guild,game_title,mmr_title)
     if players:
         player_embed = discord.Embed(title='Found them',color=0xe67e22)
-        p = ' '
-        for name in players:
-            p += '**{}** '.format(name)
+        player_embed.add_field(name='Total gamers found',value= len(players))
+        mention_string = ''
+        for player_id in players:
+            mention_string += '<@!{}> \n'.format(player_id)
         await context.channel.send(embed=player_embed)
-        await context.channel.send(p)
+        await context.channel.send(mention_string)
     else:
         await context.channel.send('Nothing found')
 
