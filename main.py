@@ -1,14 +1,19 @@
 
 from os import name
 import discord
+from discord.member import Member
+from discord.mentions import AllowedMentions
 from database import get_games,get_game_to,get_ranks_to,create_connection,get_mmr_title,insert_new_player,get_games_from_user_and_guild,get_ranks_from_user_and_guild,find_players,update_mmr
 from discord.ext import commands
 
+mentions = discord.AllowedMentions(everyone=True, users=True, roles=True, replied_user=True)
+
+#this enables sthe bot to track de members activity and current status
 intents = discord.Intents.all()
 
 token = ""
 
-bot = commands.Bot(command_prefix='$',intents=intents)
+bot = commands.Bot(command_prefix='$',intents=intents,AllowedMentions=mentions)
 connector = None
 try:
     connector = create_connection('localhost','root','root','bot')
@@ -77,9 +82,10 @@ async def party(context):
     game_title = get_game_to(connector,game_icon)
 
     #we make the message to the members of the guild
+    #allowed_mentions = discord.AllowedMentions(everyone = True)
     party_embed = discord.Embed(title='is creating a party for: ' + game_title.capitalize(), color=0xe67e22)
     party_embed.set_author(name=context.author.name, icon_url=context.author.avatar_url)
-    party_message = await context.channel.send(embed=party_embed)
+    party_message = await context.channel.send(content="@everyone", embed=party_embed)
     await party_message.add_reaction(game_icon)
     
     #we make an empty list in which the players will be added if they react to the message
