@@ -44,19 +44,18 @@ def get_game_to(connection,game_icon):
         return game_name[0].get('game_title')
 
 
-def get_ranks_to(connection,game_title):
+def get_ranks_to(connection, game_title):
         if connection.is_connected():
             cursor = connection.cursor(dictionary=True)
             query = "SELECT mmr_name , mmr_icon FROM mmr WHERE mmr.game_title = '{}' ".format(game_title)
             cursor.execute(query)
             games_rank = cursor.fetchall()
-            print(games_rank)
             games_dic = dict()
             for game in games_rank:
                 games_dic[game.get('mmr_name')] = game.get('mmr_icon')
             return(games_dic)
     
-def get_mmr_title(connection,a_mmr_icon):
+def get_mmr_title(connection, a_mmr_icon):
     if connection.is_connected():
         cursor = connection.cursor(dictionary=True)
         query = "SELECT mmr_name FROM mmr WHERE mmr.mmr_icon = '{}'".format(a_mmr_icon)
@@ -64,16 +63,15 @@ def get_mmr_title(connection,a_mmr_icon):
         mmr_name = cursor.fetchall()
         return mmr_name[0].get('mmr_name')
 
-def insert_new_player(connection,id,name,guild,game,game_icon,mmr,mmr_icon):
+def insert_new_player(connection, id, name, guild, game, game_icon ,mmr, mmr_icon):
     if connection.is_connected():
-        print(id)
         cursor = connection.cursor(dictionary=True)
         query = "INSERT INTO player VALUES({},'{}','{}','{}','{}','{}','{}')".format(id,name,guild,game,game_icon,mmr,mmr_icon)
         cursor.execute(query)
         connection.commit()
         
 
-def get_games_from_user_and_guild(connection,id,guild):
+def get_games_from_user_and_guild(connection, id, guild):
 
     if connection.is_connected():
             cursor = connection.cursor(dictionary=True)
@@ -85,17 +83,35 @@ def get_games_from_user_and_guild(connection,id,guild):
                 user_dict[game.get('game_title')] = game.get('game_icon')
             return user_dict
 
-def get_ranks_from_user_and_guild(connection,id,guild):
+def get_ranks_from_user_and_guild(connection, id, guild):
 
     if connection.is_connected():
             cursor = connection.cursor(dictionary=True)
-            query = "SELECT mmr_name,mmr_icon FROM player WHERE id = {} AND guild = '{}' ".format(id,guild)
+            query = "SELECT game_title, mmr_icon FROM bot.player WHERE id = {} AND guild = '{}' ".format(id,guild)
             cursor.execute(query)
             user_ranks = cursor.fetchall()
             user_dict = dict()
             for game in user_ranks:
-                user_dict[game.get('mmr_name')] = game.get('mmr_icon')
+                user_dict[game.get('game_title')] = game.get('mmr_icon')
             return user_dict
 
-def update_mmr():
-    pass
+
+def find_players(connection, guild, game_title, game_rank):
+
+    if connection.is_connected():
+            cursor = connection.cursor(dictionary=True)
+            query = "SELECT id FROM player WHERE guild = '{}' AND game_title = '{}' AND mmr_name = '{}'".format(guild,game_title,game_rank)
+            cursor.execute(query)
+            players = cursor.fetchall()
+            player_names = []
+            for p in players:
+                player_names.append(p.get('id'))
+                
+            return player_names
+
+def update_mmr(connection, guild, player_name, game_title, game_rank, game_rank_icon):
+
+    if connection.is_connected():
+            cursor = connection.cursor(dictionary=True)
+            query = "UPDATE player SET mmr_name = '{}',mmr_icon = '{}' WHERE player_name = '{}' AND game_title = '{}' AND guild = '{}'".format(game_rank,game_rank_icon,player_name,game_title,guild)
+            cursor.execute(query)
