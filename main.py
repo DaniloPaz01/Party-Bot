@@ -6,7 +6,7 @@ from discord.ext import commands
 
 intents = discord.Intents.all()
 
-token = "ODYyOTU2MjgzMzg0OTU0OTAw.YOf4qg.uRTp-Cdm_dmFpRXmhTGFaOnNY34"
+token = "here goes the token"
 
 bot = commands.Bot(command_prefix='$',intents=intents)
 connector = None
