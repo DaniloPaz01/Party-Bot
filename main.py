@@ -49,7 +49,7 @@ async def who(context):
 @bot.event
 async def on_voice_state_update(member, before, after):
 
-    #this are the chanel that needs to be targeted
+    #these are the channels that needs to be targeted
     channel_names = ['csgo','overwatch','dota','lol','valorant']
 
     #we check that before is not none,otherwise it means that we have entered a channel
