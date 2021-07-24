@@ -1,11 +1,12 @@
 
+from os import name
 import discord
 from database import get_games,get_game_to,get_ranks_to,create_connection,get_mmr_title,insert_new_player,get_games_from_user_and_guild,get_ranks_from_user_and_guild,find_players,update_mmr
 from discord.ext import commands
 
 intents = discord.Intents.all()
 
-token = ""
+token = "ODYyOTU2MjgzMzg0OTU0OTAw.YOf4qg.uRTp-Cdm_dmFpRXmhTGFaOnNY34"
 
 bot = commands.Bot(command_prefix='$',intents=intents)
 connector = None
@@ -15,12 +16,14 @@ except Exception as error:
     print('db not available {}'.format(error))
 
 def create_embed_with_title_from(a_title,a_dict_with_icons):
+    """it creates an embeded message with a title and a dict which items are the name of  the game and it's icon"""
     embed = discord.Embed(title=a_title.capitalize(),color=0xe67e22)
     for game,emoji in a_dict_with_icons.items():
         embed.add_field(name = game.capitalize(), value= emoji, inline = True)
     return embed
 
 def show_players_activity(a_guild):
+    """sends a message to the context channel with the activity of the server members"""
     activity = ''
     for member in (a_guild.members):
         if (member.status != discord.Status.offline) and not(member.bot) and (member.activity):
@@ -41,6 +44,62 @@ async def who(context):
         await context.author.send('This command is only usable on any of your guilds')
     else:
         await context.channel.send(embed=embed)
+    
+
+@bot.event
+async def on_voice_state_update(member, before, after):
+
+    #this are the chanel that needs to be targeted
+    channel_names = ['csgo','overwatch','dota','lol','valorant']
+
+    #we check that before is not none,otherwise it means that we have entered a channel
+    if before.channel:
+
+        #if there are no members and the channel is one of the targeted then we can delete it
+        if before.channel.name.lower() in channel_names and len(before.channel.members) == 0:
+            await before.channel.delete()
+
+@bot.command()
+async def party(context):
+
+    #we display all games 
+    games_from_db = get_games(connector)
+    embed = create_embed_with_title_from('Select a game for your party',games_from_db)
+    embed.set_author(name=context.author.name,icon_url=context.author.avatar_url)
+    game_selection = await context.channel.send(embed=embed,delete_after=60)
+    for icon in games_from_db.values():
+        await game_selection.add_reaction(icon)
+
+    def check(reaction, user):
+        return not(user.bot) and user == context.author and reaction.message == game_selection and str(reaction.emoji) in games_from_db.values()
+
+    game_icon,player = await bot.wait_for('reaction_add',check=check)
+    game_title = get_game_to(connector,game_icon)
+
+    #we make the message to the members of the guild
+    party_embed = discord.Embed(title=context.author.name + ' is creating a party for: ',color=0xe67e22)
+    party_embed.add_field(name=game_title,value=game_icon)
+    party_message = await context.channel.send(embed=party_embed)
+    await party_message.add_reaction(game_icon)
+    
+    #we make an empty list in which the players will be added if they react to the message
+    player_waitlist = []
+
+    def check_users(reaction, user):
+        return not(user.bot) and reaction.message == party_message and str(reaction.emoji) in games_from_db.values()
+
+    while True:
+        reaction,player = await bot.wait_for('reaction_add',check=check_users)
+        player_waitlist.append(player)
+        if len(player_waitlist) == 1:
+            break
+    
+    #we create a voice channel for that game and an invitation 
+    voice = await context.guild.create_voice_channel(name=game_title,user_limit=5)
+    invite = await voice.create_invite()
+
+    for p in player_waitlist:
+        await p.send(invite)
     
 
 @bot.command()
@@ -74,6 +133,7 @@ async def clear(context):
 
 @bot.command()
 async def find(context):
+
     games_from_db = get_games(connector)
     embed = create_embed_with_title_from('Select a game',games_from_db)
     embed.set_author(name=context.author.name,icon_url=context.author.avatar_url)
@@ -116,64 +176,71 @@ async def find(context):
 @bot.command()
 async def add(context):
 
+    #we get all the games available
     games_from_db = get_games(connector)
-    embed = create_embed_with_title_from('Select your games',games_from_db)
-    embed.set_author(name=context.author.name,icon_url=context.author.avatar_url)
-    game_selection = await context.author.send(embed=embed,delete_after=60)
+
+    #now we create an embeded message with the titles and icons
+    embed = create_embed_with_title_from('Select your games', games_from_db)
+    embed.set_author(name=context.author.name, icon_url=context.author.avatar_url)
+    game_selection = await context.author.send(embed=embed, delete_after=60)
     for icon in games_from_db.values():
         await game_selection.add_reaction(icon)
 
-    def check(reaction, user):
+    def check_game(reaction, user):
         return not(user.bot) and user == context.author and reaction.message == game_selection and str(reaction.emoji) in games_from_db.values()
 
-    game_icon,player = await bot.wait_for('reaction_add',check=check)
-    game_title = get_game_to(connector,game_icon)
-    game_mmr = get_ranks_to(connector,game_title)
+    #we get the icon and the player who reacted to the message
+    game_icon, player = await bot.wait_for('reaction_add', check=check_game)
+
+    #we get the  name of the game which icon belongs to
+    game_title = get_game_to(connector, game_icon)
+
+    #then we get the ranks of that game
+    game_mmr = get_ranks_to(connector, game_title)
     
-    embed_mmr = create_embed_with_title_from(game_title,game_mmr)
-    embed_mmr.set_author(name="Now select your MMR",icon_url=context.author.avatar_url)
-    mmr_selection = await context.author.send(embed=embed_mmr,delete_after=60)
-    for icon_mmmr in game_mmr.values():
-             await mmr_selection.add_reaction(icon_mmmr)
+    #finally we create a new embed message which the names and icons of the game ranks
+    embed_mmr = create_embed_with_title_from(game_title, game_mmr)
+    embed_mmr.set_author(name="Now select your MMR", icon_url=context.author.avatar_url)
+    mmr_selection = await context.author.send(embed=embed_mmr, delete_after=60)
+    for icon in game_mmr.values():
+             await mmr_selection.add_reaction(icon)
 
-    def check_mmr_selected(reaction, user):
-
-        if context.author == user and reaction.message == mmr_selection and not(user.bot):
-            if (str(reaction.emoji) in game_mmr.values()):
-                return (reaction.emoji,user)
+    def check_mmr(reaction, user):
+        return context.author == user and reaction.message == mmr_selection and not(user.bot) and (str(reaction.emoji) in game_mmr.values())
                   
-    game_mmr_icon, _ = await bot.wait_for('reaction_add',check=check_mmr_selected)
-    mmr_title = get_mmr_title(connector,game_mmr_icon)
-    print(player.id)
-    insert_new_player(connector,player.id,player.name,context.guild,game_title,game_icon,mmr_title,game_mmr_icon)
+    icon_mmr, _ = await bot.wait_for('reaction_add', check=check_mmr)
+    mmr_title = get_mmr_title(connector, icon_mmr)
+    insert_new_player(connector, player.id, player.name, context.guild, game_title, game_icon, mmr_title, icon_mmr)
     
 @bot.command()
 async def update(context):
+
+    #first we get the games of the caller of this command
     my_games = get_games_from_user_and_guild(connector,context.author.id,context.guild)
+
+    #as we did before we create a new embed message
     embed = create_embed_with_title_from('Select a game to update',my_games)
     embed.set_author(name=context.author.name,icon_url=context.author.avatar_url)
-    game_msg = await context.author.send(embed=embed)
-    for game in my_games.values():
-        await game_msg.add_reaction(game)
+    game_selection = await context.author.send(embed=embed)
+    for game_icon in my_games.values():
+        await game_selection.add_reaction(game_icon)
     
-    def check(reaction, user):
-        return not(user.bot) and user == context.author and reaction.message == game_msg and str(reaction.emoji) in my_games.values()
+    def check_update(reaction, user):
+        return not(user.bot) and user == context.author and reaction.message == game_selection and str(reaction.emoji) in my_games.values()
 
-    game_icon,player = await bot.wait_for('reaction_add',check=check)
-    game_title = get_game_to(connector,game_icon)
-    game_mmr = get_ranks_to(connector,game_title)
+    game_icon,player = await bot.wait_for('reaction_add', check=check_update)
+    game_title = get_game_to(connector, game_icon)
+    game_mmr = get_ranks_to(connector, game_title)
 
-    embed_mmr = create_embed_with_title_from(game_title,game_mmr)
-    embed_mmr.set_author(name="Now select your new MMR",icon_url=context.author.avatar_url)
-    mmr_selection = await context.author.send(embed=embed_mmr,delete_after=60)
+    #now we display the available ranks
+    embed_mmr = create_embed_with_title_from(game_title, game_mmr)
+    embed_mmr.set_author(name="Now select your new MMR", icon_url=context.author.avatar_url)
+    mmr_selection = await context.author.send(embed=embed_mmr, delete_after=60)
     for icon_mmmr in game_mmr.values():
              await mmr_selection.add_reaction(icon_mmmr)
 
     def check_mmr_selected(reaction, user):
-
-        if context.author == user and reaction.message == mmr_selection and not(user.bot):
-            if (str(reaction.emoji) in game_mmr.values()):
-                return (reaction.emoji,user)
+        return context.author == user and reaction.message == mmr_selection and not(user.bot) and (str(reaction.emoji) in game_mmr.values())
                   
     game_mmr_icon, _ = await bot.wait_for('reaction_add',check=check_mmr_selected)
     mmr_title = get_mmr_title(connector,game_mmr_icon)
