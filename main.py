@@ -1,13 +1,11 @@
 
-import os
 import discord
 from database import get_games,get_game_to,get_ranks_to,create_connection,get_mmr_title,insert_new_player,get_games_from_user_and_guild,get_ranks_from_user_and_guild,find_players,update_mmr
 from discord.ext import commands
-from games_config import games_with_icons,games_with_mmr
 
 intents = discord.Intents.all()
 
-token = "here goes the token"
+token = ""
 
 bot = commands.Bot(command_prefix='$',intents=intents)
 connector = None
@@ -47,7 +45,7 @@ async def who(context):
 
 @bot.command()
 async def games(context):
-    embed = create_embed_with_title_from('Our games',games_with_icons)
+    embed = create_embed_with_title_from('Our games',get_games(connector))
     await context.channel.send(embed=embed)
 
 @bot.command()
